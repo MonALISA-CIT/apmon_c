@@ -1,0 +1,40 @@
+		ApMon - Application Monitoring API for C
+		****************************************
+
+Changes:
+********
+
+Version 2.2.2 - 14 May 2011
+    * fixed bug for unresolved IP address
+Version 2.2.1 - 23 November 2007
+    * Removed bug from the background thread, that was sometimes causing
+it to sleep for 10 mins.
+
+Version 2.2.0 - 7 March 2006
+    * Added two new fields in the datagrams: an ID for the sender and 
+a sequence number.
+
+VERSION 2.0.10 - 21 December 2005
+    * Added new options for system monitoring: sys_net_sockets, 
+sys_net_tcp_details.
+    * Added some system parameters that can be monitored (the number of 
+processes in different states - D, R, S, T, Z).
+    * Sorted alphabetically the parameters after their names,
+before putting them in the datagram.
+    * Changed the default maximum message rate to 20.    
+    * Made a few modifications for compatibility with MacOS (so that
+ApMon can be initialized even if the proc/ filesystem does not exist). 
+
+	
+VERSION 2.0.6 - 19 August 2005
+
+    * Fixed some memory leaks.
+
+	
+VERSION 2.0.4 - 8 August 2005
+
+    * Added the "open_files" parameter for job monitoring
+    
+    * Added parameters for general system monitoring: "cpu_family", 
+    "cpu_model", "cpu_model_name", "bogomips"  
+    

@@ -1,0 +1,338 @@
+
+		    ApMon - Application Monitoring API for C
+				version 2.2.2
+		  ******************************************
+		    ***************************************
+				 May 2011
+			California Institute of Technology
+		    ***************************************			
+
+1. Introduction
+2. What's new in version 2.x?
+3. Installation 
+4. Using ApMon
+5. xApMon - Monitoring information
+6. Logging
+7. Bug reports
+
+1. Introduction
+****************
+  ApMon is an API that can be used by any application to send monitoring
+information to MonALISA services (http://monalisa.caltech.edu). The
+monitoring data is sent as UDP datagrams to one or more hosts running MonALISA.
+The MonALISA host may require a password enclosed in each datagram, for 
+authentication purposes. ApMon can also send datagrams that contain monitoring
+information regarding the system or the application.  
+  The C version of ApMon only works on Linux systems.
+
+2. What's new in version 2.x?
+****************************
+  ApMon 2.0 was extended with xApMon, a feature that allows it to send to the 
+MonALISA service datagrams with monitoring information regarding the system or
+the application. 
+  In this ApMon version there is also the possibility to associate the 
+datagrams with timestamps set by the user.
+
+3. Installation
+****************
+To compile the ApMon routines and all the examples, type:
+
+	./configure [options]
+	make
+	make install
+
+  (where "options" are the typical configure options)
+  If you have Doxygen, you can get the API docs by issuing make doc.
+
+  The lib will be installed in $prefix/lib and the ApMon.h include file into 
+the $prefix/include directory.
+
+4. Using ApMon
+*******************
+  We defined a structure called ApMon, which holds the
+parameters that the user wants to include in the datagram, until the datagram
+is sent. 
+  The datagram sent to the MonaLisa module has the following structure:
+  -  a header which has the following syntax: 
+      v:<ApMon_version>p:<password>       
+      
+      (the password is sent in plaintext; if the MonALISA host does not require
+      a password, a 0-length string should be sent instead of the password).
+
+  - (since v2.2.0) an ID for the ApMon instance, which is a randomly generated
+number
+  - (since v2.2.0) a sequence number for the datagram. This field and the 
+previous one can be used by the MonALISA service to detect the loss of 
+datagrams
+  - cluster name (string) - the name of the monitored cluster 
+  - node name (string) - the name of the monitored nodes
+  - number of parameters (int)
+  - for each parameter: name (string), value type (int), value (can be double,
+int or string)
+  - optionally a timestamp (int) if the user wants to specify the time
+associated with the data; if the timestamp is not given, the current time on
+the destination host which runs MonALISA will be used.
+
+  Either he/she uses one method or the other, the user should call first 
+the function apMon_init() (or the variants apMon_arrayInit(), 
+apMon_stringInit()), which initializes an ApMon structure. The function 
+apMon_init() has a parameter which is the name of a configuration file. The
+configuration file specifies the IP addresses or DNS names of the hosts 
+running MonALISA, to which the data is sent, and  also specifies the ports 
+on which the MonALISA service listens, on the destination hosts. The 
+configuration file contains a line of the following form for each destination 
+host:
+
+IP_address|DNS_name[:port] [password]
+
+Example:
+rb.rogrid.pub.ro:8884 mypassword
+rb.rogrid.pub.ro:8884
+ui.rogrid.pub.ro mypassword
+ui.rogrid.pub.ro
+
+  If the port is not given, the default value 8884 will be assumed.
+If the password is not specified, an empty string will be sent as password
+to the MonALISA host (and the host will only accept the datagram if it does not
+require a password)
+  The configuration file may contain blank lines and comment lines (starting 
+with "#"); these lines are ignored, and so are the leading and the trailing
+white spaces from the other lines. 
+
+  ApMon can be also initialized from a list of strings; the list may contain
+hostnames and ports as explained above, but also URLs from where the names of the
+destination hosts and the corresponding ports are to be read; the URLs
+are associated with plain text configuration files which have the format 
+described above. The URLs can also represent requests to a servlet or a CGI
+script which can automatically provide the best configuration, taking into 
+account the geographical zone in which the machine which runs ApMon is 
+situated, and the application for which ApMon is used 
+(see example_confgen.cpp). The geographical zone is determined from the
+machine's IP and the applicaiton name is given by the user as the value of the
+"appName" parameter included in the URL.
+
+  There are two ways in which the user can send parameter values to MonALISA:
+  a) a single parameter in a datagram
+  b) multiple parameters in a datagram
+
+  For sending a datagram with a single parameter, the user should call the
+function sendParameter() or the specialized variants sendIntParameter(), 
+sendDoubleParameter() etc., which have a simplified syntax.
+
+  For sending multiple parameters in a datagram the user should call the
+function sendParameters which receives as arguments arrays with the 
+parameter names and values.
+
+  After sending all the parameters, the user should call the apMon_free()
+function in order to clean up the memory used by the ApMon structure and to
+close the socket descriptor. It is important that this function be called
+when the structure is no longer necessary.
+
+ Since version 2.0 there are two additional functions, sendTimedParameter() 
+and sendTimedParameters(), which allow the user to specify a timestamp
+for the parameters.
+
+ ApMon does not send parameters whose names are NULL strings or string 
+parameters that have NULL value (these parameters are "skipped").
+
+ The configuration file and/or URLs can be periodically checked for changes,
+but this option is disabled by default. In order to enable it, the user should
+call apMon_setConfCheck(); the value of the time interval at which the 
+recheck operatins are performed, can be set with the function 
+apMon_setRecheckInterval().The way in which the configuration file or URLs are
+checked for changes can be also specified in the configuration file:
+
+  - to enable/disable the periodical checking of the configuration file
+or URLs:
+xApMon_conf_recheck = on/off
+
+  - to set the time interval at which the file/URLs are checked for changes:
+xApMon_recheck_interval = <number_of_seconds>
+
+ 
+  For a better understanding of how to use the functions mentioned above, see
+the Doxygen documentation and the examples.
+
+5. xApMon - Monitoring information
+***********************************
+ApMon can be configured to send to the MonALISA service monitoring information 
+regarding the application or the system. The system monitoring information
+is obtained from the proc/ filesystem and the job monitoring information is
+obtained by parsing the output of the ps command. If job monitoring for a
+process is requested, all its sub-processes will be taken into consideration
+(i.e., the resources consumed by the process and all the subprocesses will be
+summed).
+
+There are three categories of monitoring datagrams that ApMon can send:
+a) job monitoring information - contains the following parameters:
+
+   run_time		- elapsed time from the start of this job
+   cpu_time	   	- processor time spent running this job
+   cpu_usage		- percent of the processor used for this job, as 
+			  reported by ps
+   virtualmem	 	- virtual memory occupied by the job (in KB)
+   rss			- resident image size of the job (in KB)
+   mem_usage		- percent of the memory occupied by the job, as 
+			  reported by ps
+   workdir_size		- size in MB of the working directory of the job
+   disk_total		- size in MB of the disk partition containing the 
+			  working directory
+   disk_used		- size in MB of the used disk space on the partition 
+			  containing the working directory
+   disk_free		- size in MB of the free disk space on the partition 
+			  containing the working directory
+   disk_usage		- percent of the used disk partition containing the 
+			  working directory
+   open_files		- number of opened file descriptors
+
+b) system monitoring information - contains the following parameters:
+
+   cpu_usr  		- percent of the time spent by the CPU in user mode 
+   cpu_sys		- percent of the time spent by the CPU in system mode
+   cpu_nice		- percent of the time spent by the CPU in nice mode
+   cpu_idle		- percent of the time spent by the CPU in idle mode
+   cpu_usage	 	- CPU usage percent
+   pages_in		- the number of pages paged in per second 
+			  (average for the last time interval)
+   pages_out		- the number of pages paged out per second 
+			  (average for the last time interval) 
+   swap_in		- the number of swap pages brought in per second 
+			  (average for the last time interval)
+   swap_out		- the number of swap pages brought out per second 
+			  (average for the last time interval) 
+   load1		- average system load over the last minute
+   load5		- average system load over the last 5 min
+   load15		- average system load over the last 15 min
+   mem_used	        - amount of currently used memory, in MB
+   mem_free		- amount of free memory, in MB
+   mem_usage		- used system memory in percent
+   swap_used	        - amount of currently used swap, in MB 
+   swap_free		- amount of free swap, in MB
+   swap_usage		- swap usage in percent
+   net_in	        - network (input)  transfer in kBps
+   net_out	        - network (input)  transfer in kBps 
+   net_errs	        - number of network errors
+  (these will produce params called sys_ethX_in, sys_ethX_out, sys_ethX_errs, 
+   corresponding to each network interface)
+   processes		- curent number of processes
+   (this will also produce parameters called processes_{D,R,T,S,Z}- number of 
+    processes in the D (uninterruptible sleep),R (running), T (traced/stopped),
+    S (sleeping),Z (zombie) states)
+   uptime		- system uptime in days
+   net_sockets          - the number of open TCP, UDP, ICM, Unix sockets.
+   (this will produce parameters called sockets_tcp, sockets_udp, ...)
+   net_tcp_details      - the number of TCP sockets in each possible state
+   (this will produce parameters called sockets_tcp_ESTABLISHED, 
+    sockets_TCP_LISTEN, ...)              
+
+c) general system information - contains the following parameters:
+   hostname		-
+   ip                  	- will produce ethX_ip params for each interface
+   cpu_MHz		- CPU frequency
+   no_CPUs             	- number of CPUs
+   total_mem		- total amount of memory, in MB
+   total_swap		- total amount of swap, in MB
+   cpu_vendor_id	- the CPU's vendor ID
+   cpu_family
+   cpu_model
+   cpu_model_name
+   bogomips             - number of bogomips for the CPU  
+
+  The parameters from a) and b)  can be enabled/disabled from the 
+configuration file (if they are disabled, they will not be included in the
+datagrams). In order to enable/disable a parameter, the user should write in
+the configuration file lines of the following form:
+
+xApMon_job_parametername = on/off
+(for job parameters)
+or:
+xApMon_sys_parametername = on/off
+(for job parameters)
+
+Example:
+xApMon_job_run_time = on
+xApMon_sys_load1 = off
+
+
+  By default, all the parameters are enabled.
+
+  The job/system monitoring can be enabled/disabled by including the following 
+lines in the configuration file:
+
+xApMon_job_monitoring = on/off
+xApMon_sys_monitoring = on/off
+
+  The datagrams with general system information are only sent if system 
+monitoring is enabled, at greater time intervals (2 datagrams with general
+system information for each 100 system monitoring datagrams). To enable/
+disable the sending of general system information datagrams, the following
+line should be written in the configuration file:
+
+xApMon_general_info = on/off
+
+  The time interval at which job/system monitoring datagrams are sent can be set
+with:
+
+xApMon_job_interval = <number_of_seconds>
+xApMon_sys_interval = <number_of_seconds>
+
+  To enable/disable the job/system monitoring, and also to set the time 
+intervals, the functions setJobMonitoring() and setSysMonitoring() can be
+used (see the API docs for more details).
+
+  To monitor jobs, you have to specify the PID of the parent process for the 
+tree of processes that you want to monitor, the working directory, the cluster 
+and the node names that will be registered in MonALISA (and also the job 
+monitoring must be enabled). If work directory is "", no information will be 
+retrieved about disk:
+  apMon_addJobToMonitor(ApMon *apm, long pid, char *workdir, char *clusterName,
+			    char *nodeName);
+
+  To stop monitoring a job, the apMon_removeJobToMonitor() should be called.
+
+
+  LIMITATIONS:
+  The following values are limited to some constants defined in ApMon.h:
+  - the maximum number of destinations to which the datagrams can be sent 
+(specified by the constant MAX_N_DESTINATIONS; by default it is 30)
+  - the maximum size of a datagram (specified by the constant MAX_DGRAM_SIZE;
+by default it is 8192B and the user should not modify this value)
+  - the password can have at most 20 characters
+  - the maximum number of jobs that can be monitored is 30 
+  - the maximum number of messages that can be sent per second, on average, is
+limited, in order to avoid the accidental growth of the network load (which 
+may happen, for example, if the user places the sendParameters() calls in a 
+loop, without pauses between them). To set the maxim number of messages that 
+can be sent per second by ApMon, you can use the following function:
+  apMon_setMaxMsgRate(ApMon *apm, int rate);
+
+  Another way to set the maximum number of messages is to specify it in the
+configuration file:
+  xApMon_maxMsgRate = 30
+  
+  By default, the maximum number of messages per second is 50.
+
+
+6. Logging
+***********
+  ApMon prints its messages to the standard output, with the aid of the 
+logger() function from utils.c (see the API documentation). The user may
+print its own messages with this function (see example_1.cpp, example_2.cpp).
+Each message has a level which represent its importance. The possible levels
+are FATAL, WARNING, INFO, FINE, DEBUG. Only the messages which have a level 
+with greater or equal importance than the current ApMon loglevel are printed. 
+The ApMon loglevel can be set from the configuration file (by default it is
+INFO):
+
+xApMon_loglevel = <level>
+e.g.,
+xApMon_loglevel = FINE
+
+ The loglevel can also be set with the aid of the setLogLevel() method, e.g.:
+ 
+ setLogLevel("WARNING");
+ 
+7. Bug reports
+***************
+For bug reports, suggestions and comments please write to
+MonALISA-CIT@cern.ch
